@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no">
+    <title>LIBRARY_SYSTEM_M01</title>
+    <style>
+        /* --- CSS Reset & Mobile Setup --- */
+        :root {
+            --bg-color: #050505;
+            --main-green: #33ff33;
+            --poi-amber: #ffcc00;
+            --dim-green: #004400;
+            --font-stack: 'Courier New', Courier, monospace;
+            --header-h: 12vh;
+            --map-h: 53vh;
+            --top-h: 65vh; 
+            --vn-h: 35vh;  
+        }
+
+        * { box-sizing: border-box; touch-action: none; -webkit-tap-highlight-color: transparent; }
+        body {
+            background-color: var(--bg-color);
+            color: var(--main-green);
+            font-family: var(--font-stack);
+            margin: 0;
+            padding: 0;
+            overflow: hidden; 
+            height: 100vh;
+            width: 100vw;
+            font-size: 14px;
+        }
+
+        .terminal-text {
+            text-shadow: 0 0 5px var(--main-green);
+            letter-spacing: 1px;
+        }
+        .hidden { display: none !important; }
+
+        /* --- Start Screen --- */
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-color);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 100;
+        }
+        #start-btn {
+            background: transparent; border: 2px solid var(--main-green); color: var(--main-green);
+            padding: 15px 30px; font-family: var(--font-stack); font-size: 1.2rem;
+            margin-top: 20vh; cursor: pointer;
+        }
+
+        /* --- Intro Animation Overlay --- */
+        #intro-overlay {
+            width: 100%; height: var(--top-h);
+            background: #000; display: flex; justify-content: center; align-items: center;
+            border-bottom: 1px solid var(--main-green);
+        }
+        #intro-scene {
+            position: relative; width: 100%; height: 100%; overflow: hidden;
+        }
+        .intro-actor { position: absolute; font-size: 2rem; transition: all 0.5s ease; }
+
+        /* --- Game layout --- */
+        #game-view {
+            display: flex; flex-direction: column; height: var(--top-h);
+            border-bottom: 1px solid var(--main-green);
+        }
+        header {
+            height: var(--header-h);
+            display: grid; grid-template-columns: 1fr 1fr;
+            padding: 5px; font-size: 0.8rem;
+        }
+        #trust-container { grid-column: 1 / -1; display: flex; align-items: center; margin-top: 3px;}
+        #trust-bar {
+            flex-grow: 1; height: 10px; border: 1px solid var(--main-green);
+            margin-left: 5px; position: relative; background: #111;
+        }
+        #trust-fill {
+            position: absolute; left: 0; top: 0; height: 100%; background: var(--main-green);
+            width: 0%; transition: width 0.3s;
+        }
+        #mission-list { font-size: 0.75rem; color: var(--poi-amber); }
+
+        #map-area {
+            height: var(--map-h);
+            background: #111; position: relative; overflow: hidden;
+            background-image: linear-gradient(var(--dim-green) 1px, transparent 1px), linear-gradient(90deg, var(--dim-green) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        #zone-stacks { position: absolute; left: 10px; top: 10px; color: var(--dim-green); }
+        #zone-office { position: absolute; right: 10px; bottom: 10px; color: var(--dim-green); }
+
+        .character {
+            position: absolute; font-size: 2.5rem; text-align: center;
+            width: 50px; height: 50px; line-height: 50px;
+            z-index: 10; cursor: grab;
+        }
+        .char-label { font-size: 0.7rem; color: #fff; position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); padding: 0 2px;}
+
+        .computer-bubble {
+            position: absolute; font-size: 2rem; /* 稍微调大了点气泡，方便瞄准拖拽 */
+            animation: pulse 1.5s infinite; z-index: 5;
+        }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
+        .dragging { opacity: 0.5; transform: scale(1.1); cursor: grabbing; }
+
+        /* --- Visual Novel Box --- */
+        #vn-container {
+            height: var(--vn-h);
+            background: #000; padding: 10px;
+            position: relative; display: flex; flex-direction: column;
+            cursor: pointer;
+        }
+        #speaker-name {
+            font-weight: bold; color: #fff; font-size: 1.1rem;
+            margin-bottom: 5px; height: 1.2rem;
+        }
+        #dialogue-text {
+            font-size: 1rem; line-height: 1.4; flex-grow: 1;
+        }
+        #option-box {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 20;
+        }
+        .option-btn {
+            background: transparent; border: 1px solid var(--poi-amber); color: var(--poi-amber);
+            padding: 10px 20px; margin: 10px; font-family: var(--font-stack); width: 80%; cursor: pointer;
+        }
+    </style>
+</head>
+<body class="terminal-text">
+
+    <div id="start-screen">
+        <div style="font-size: 1.5rem;">[ 机器视角 / THE_MACHINE ]</div>
+        <div style="color: red; font-size: 0.8rem; margin-top: 10px;">危险程度: 极高 (CRITICAL)</div>
+        <button id="start-btn">>> 建立连接 (START)</button>
+    </div>
+
+    <div id="intro-overlay" class="hidden">
+        <div id="intro-scene">
+            <div style="position:absolute; top:20%; left:10%; font-size:2rem;">🚧</div>
+            <div style="position:absolute; bottom:30%; right:15%; font-size:2rem;">🚇</div>
+            <div id="actor-reese" class="intro-actor" style="bottom: 10%; left: 10%;">🐶</div>
+            <div id="actor-human" class="intro-actor" style="bottom: 15%; left: 50%;">👤</div>
+            <div id="actor-bully1" class="intro-actor" style="top: 10%; right: -50px;">🐺</div>
+            <div id="actor-bully2" class="intro-actor" style="top: 20%; right: -50px;">🐺</div>
+            <div id="actor-bully3" class="intro-actor" style="top: 30%; right: -50px;">🐺</div>
+        </div>
+    </div>
+
+    <div id="game-view" class="hidden">
+        <header>
+            <div>SYSTEM: ONLINE</div>
+            <div>STATUS: TRACE_ABSENT</div>
+            <div id="trust-container">
+                TRUST: <span id="trust-val">0</span>/1000
+                <div id="trust-bar"><div id="trust-fill"></div></div>
+            </div>
+            <div id="mission-list" style="grid-column: 1 / -1; margin-top:5px; border-top:1px solid #222;">
+                PENDING TASKS: <br>
+                <span id="task-0"></span><br>
+                <span id="task-1"></span>
+            </div>
+        </header>
+
+        <div id="map-area">
+            <div id="zone-stacks">藏书区</div>
+            <div id="zone-office">办公区</div>
+            
+            <div id="char-finch" class="character" style="left: 20%; top: 30%;">
+                🐱<span class="char-label">Finch</span>
+            </div>
+            <div id="char-reese" class="character" style="left: 60%; top: 60%;">
+                🐶<span class="char-label">Reese</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="vn-container" class="hidden">
+        <div id="speaker-name"></div>
+        <div id="dialogue-text"></div>
+        
+        <div id="option-box" class="hidden">
+            <button class="option-btn" onclick="makeChoice(1)">[ 选项1: 我接受。 ]</button>
+            <button class="option-btn" onclick="makeChoice(2)">[ 选项2: 我不感兴趣。 ]</button>
+        </div>
+    </div>
+
+<script>
+    const CONFIG = {
+        maxTrust: 1000,
+        trustPerTalk: 15,
+        trustPerHelp: 5,
+        totalMissions: 30,
+        bubbleInterval: 8000,
+        typeSpeed: 50,
+        moveInterval: 5000
+    };
+
+    let gameState = {
+        trust: 0,
+        missionsCompleted: 0,
+        activeTasks: [],
+        currentVNMode: 'intro',
+        finch连续找Reese: 0,
+        reese连续找Finch: 0,
+        isFirstDrag: true
+    };
+
+    const dom = {
+        start: document.getElementById('start-screen'),
+        intro: document.getElementById('intro-overlay'),
+        game: document.getElementById('game-view'),
+        vn: document.getElementById('vn-container'),
+        speaker: document.getElementById('speaker-name'),
+        text: document.getElementById('dialogue-text'),
+        options: document.getElementById('option-box'),
+        trustVal: document.getElementById('trust-val'),
+        trustFill: document.getElementById('trust-fill'),
+        charFinch: document.getElementById('char-finch'),
+        charReese: document.getElementById('char-reese'),
+        map: document.getElementById('map-area')
+    };
+
+    let timerTypewriter = null;
+    let isLineFinished = false;
+    let currentLineText = "";
+
+    function showText(speaker, text, callback) {
+        if (timerTypewriter) clearInterval(timerTypewriter);
+        dom.speaker.innerText = speaker;
+        currentLineText = text;
+        dom.text.innerText = "";
+        isLineFinished = false;
+        
+        let charIdx = 0;
+        timerTypewriter = setInterval(() => {
+            dom.text.innerText += text[charIdx];
+            charIdx++;
+            if (charIdx >= text.length) {
+                completeLine();
+            }
+        }, CONFIG.typeSpeed);
+
+        dom.vn.onclick = (e) => {
+            if (e.target.tagName === 'BUTTON') return; 
+
+            if (!isLineFinished) {
+                completeLine();
+            } else if (callback) {
+                dom.vn.onclick = null;
+                callback();
+            }
+        };
+    }
+
+    function completeLine() {
+        clearInterval(timerTypewriter);
+        dom.text.innerText = currentLineText;
+        isLineFinished = true;
+    }
+
+    document.getElementById('start-btn').onclick = () => {
+        dom.start.classList.add('hidden');
+        runIntroAnimation();
+    };
+
+    function runIntroAnimation() {
+        dom.intro.classList.remove('hidden');
+        dom.vn.classList.remove('hidden'); 
+        gameState.currentVNMode = 'intro';
+        
+        setTimeout(() => {
+            document.getElementById('actor-bully1').style.right = '40%';
+            document.getElementById('actor-bully2').style.right = '35%';
+            document.getElementById('actor-bully3').style.right = '45%';
+        }, 500);
+
+        setTimeout(() => {
+            startIntroDialogue();
+        }, 1500);
+    }
+
+    const introLines = [
+        {s: "🐺 混混", t: "喂，你挡着我走路了！"},
+        {s: "👤 路人", t: "对……对不起。"},
+        {s: "🐺 混混", t: "哈哈，你那身打扮真是逊爆了。还带着枪？我看这个你最好也给我吧。"},
+        {s: "🐶 Reese", t: "……"},
+        {s: "🐺 混混", t: "嗯？那边的，你看什么看。你想吃枪子吗？"},
+        {s: "🐶 Reese", t: "……"},
+        {s: "", t: "*(旁白)* 啪——。一阵枪声。"},
+        {s: "🐺 混混", t: "搞什么……！可恶，算你走运，等着瞧吧。"}
+    ];
+    let introIdx = 0;
+
+    function startIntroDialogue() {
+        if (introIdx < introLines.length) {
+            let line = introLines[introIdx];
+            if(introIdx === 7) {
+                document.getElementById('actor-bully1').style.right = '-50px';
+                document.getElementById('actor-bully2').style.right = '-50px';
+                document.getElementById('actor-bully3').style.right = '-50px';
+            }
+            showText(line.s, line.t, () => {
+                introIdx++;
+                startIntroDialogue();
+            });
+        } else {
+            document.getElementById('actor-reese').style.left = '90%';
+            document.getElementById('actor-reese').style.opacity = '0';
+            
+            setTimeout(() => {
+                showText("SYSTEM", ">>> 目标信号丢失... [ 点击对话框继续追踪 ]", () => {
+                    转场到公园();
+                });
+            }, 800);
+        }
+    }
+
+    function 转场到公园() {
+        dom.intro.classList.add('hidden');
+        dom.game.classList.remove('hidden');
+        gameState.currentVNMode = 'park';
+        
+        dom.map.style.background = "#224422"; 
+        dom.charFinch.style.top = "2000px"; 
+        dom.charReese.style.left = "40%"; dom.charReese.style.top = "50%"; 
+        
+        showText("", "*(转场，来到白天)*", () => {
+            dom.charFinch.style.top = "50%"; dom.charFinch.style.left = "20%";
+            setTimeout(parkDialogue, 500);
+        });
+    }
+
+    const parkLines = [
+        {s: "🐱 Finch", t: "你好啊，Resse先生。"},
+        {s: "🐶 Reese", t: "我们认识吗？"},
+        {s: "🐱 Finch", t: "你可能不认识我……但是，我知道你。你想和我合作吗？"},
+        {s: "🐱 Finch", t: "说得更详细点……我想让你去帮助别人。"},
+        {s: "🐶 Reese", t: "帮助别人？让我想想……"}
+    ];
+    let parkIdx = 0;
+
+    function parkDialogue() {
+        if (parkIdx < parkLines.length) {
+            let line = parkLines[parkIdx];
+            showText(line.s, line.t, () => {
+                parkIdx++;
+                parkDialogue();
+            });
+        } else {
+            dom.options.classList.remove('hidden');
+            dom.vn.onclick = null; 
+        }
+    }
+
+    function makeChoice(c) {
+        dom.options.classList.add('hidden');
+        if (c === 1) {
+            showText("🐶 Reese", "好吧，我接受。但是要怎么做？", () => {
+                showText("🐱 Finch", "跟我走吧，带你去看一个东西。", 进入主游戏);
+            });
+        } else {
+            showText("🐶 Reese", "抱歉，对于一个突然出现在我面前，并且说认识我的陌生人……我该怎么相信你？", 进入主游戏);
+        }
+    }
+
+    function 进入主游戏() {
+        gameState.currentVNMode = 'main';
+        dom.map.style.background = "#111";
+        dom.map.style.backgroundImage = "linear-gradient(#004400 1px, transparent 1px), linear-gradient(90deg, #004400 1px, transparent 1px)";
+        
+        dom.charFinch.style.left = "20%"; dom.charFinch.style.top = "30%";
+        dom.charReese.style.left = "60%"; dom.charReese.style.top = "60%";
+
+        showText("SYSTEM", "欢迎来到图书馆。\n拖动角色碰触彼此来增加信任。\n将角色拖动到📧上以处理号码。", () => {
+            showTerminalPlaceholder();
+        });
+
+        initDragging();
+        startIdleMovement();
+        startBubbleGeneration();
+        updateMissions();
+    }
+
+    function showTerminalPlaceholder() {
+        if(gameState.currentVNMode !== 'main') return;
+        dom.speaker.innerText = "THE_MACHINE";
+        dom.speaker.style.color = "red";
+        dom.text.innerText = ">>> 正在监控城市流量... 等待号码生成... \n>>> 建议执行操作: 建立伙伴信任度。";
+    }
+
+    function initDragging() {
+        const characters = [dom.charFinch, dom.charReese];
+        let activeDrag = null;
+        let startX, startY, initElementX, initElementY;
+
+        characters.forEach(char => {
+            char.onpointerdown = (e) => {
+                if(gameState.currentVNMode !== 'main') return;
+                if(timerTypewriter && !isLineFinished) return; 
+
+                e.preventDefault(); 
+                activeDrag = char;
+                char.setPointerCapture(e.pointerId); 
+                
+                startX = e.clientX;
+                startY = e.clientY;
+                initElementX = parseInt(char.style.left) || 0;
+                initElementY = parseInt(char.style.top) || 0;
+                
+                char.classList.add('dragging');
+                char.style.zIndex = 100;
+            };
+        });
+
+        dom.map.onpointermove = (e) => {
+            if (!activeDrag) return;
+            e.preventDefault();
+            
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            
+            let mapRect = dom.map.getBoundingClientRect();
+            let newX = ((initElementX / 100 * mapRect.width) + dx) / mapRect.width * 100;
+            let newY = ((initElementY / 100 * mapRect.height) + dy) / mapRect.height * 100;
+
+            newX = Math.max(0, Math.min(newX, 90));
+            newY = Math.max(0, Math.min(newY, 90));
+
+            activeDrag.style.left = newX + '%';
+            activeDrag.style.top = newY + '%';
+        };
+
+        dom.map.onpointerup = (e) => {
+            if (!activeDrag) return;
+            activeDrag.releasePointerCapture(e.pointerId);
+            activeDrag.classList.remove('dragging');
+            activeDrag.style.zIndex = 10;
+            
+            // 1. 优先检测是否碰撞到了邮箱
+            let hitBubble = false;
+            const bubbles = document.querySelectorAll('.computer-bubble');
+            bubbles.forEach(bubble => {
+                if (!hitBubble && checkCollision(activeDrag, bubble)) {
+                    hitBubble = true;
+                    handleBubbleMet(activeDrag.id, bubble);
+                }
+            });
+
+            // 2. 如果没碰到邮箱，再检测是否碰到了另一个角色
+            if (!hitBubble) {
+                const otherChar = activeDrag.id === 'char-finch' ? dom.charReese : dom.charFinch;
+                if (checkCollision(activeDrag, otherChar)) {
+                    handleCharactersMet(activeDrag.id);
+                }
+            }
+            activeDrag = null;
+        };
+    }
+
+    // 重写的通用碰撞检测函数
+    function checkCollision(elem1, elem2) {
+        const r1 = elem1.getBoundingClientRect();
+        const r2 = elem2.getBoundingClientRect();
+        const buffer = 15; // 扩大了一点判定范围，手感更好
+        return !(r1.right - buffer < r2.left + buffer || 
+                 r1.left + buffer > r2.right - buffer || 
+                 r1.bottom - buffer < r2.top + buffer || 
+                 r1.top + buffer > r2.bottom - buffer);
+    }
+
+    function startIdleMovement() {
+        setInterval(() => {
+            if (timerTypewriter || document.querySelector('.dragging') || gameState.currentVNMode !== 'main') return;
+
+            [dom.charFinch, dom.charReese].forEach(char => {
+                let cx = parseInt(char.style.left);
+                let cy = parseInt(char.style.top);
+                let nx = cx + (Math.random() * 20 - 10);
+                let ny = cy + (Math.random() * 20 - 10);
+                
+                if (char.id === 'char-finch') { nx = Math.max(10, Math.min(nx, 40)); ny = Math.max(10, Math.min(ny, 50)); }
+                else { nx = Math.max(50, Math.min(nx, 80)); ny = Math.max(50, Math.min(ny, 80)); }
+
+                char.style.transition = "all 2s ease-in-out";
+                char.style.left = nx + '%'; char.style.top = ny + '%';
+                setTimeout(()=> char.style.transition = "none", 2000);
+            });
+        }, CONFIG.moveInterval);
+    }
+
+    function startBubbleGeneration() {
+        setInterval(() => {
+            if(gameState.currentVNMode !== 'main') return;
+            if(Math.random() > 0.7) return; 
+
+            // 如果场上已经有邮件了，就不生成新的，保持清爽
+            if(document.querySelectorAll('.computer-bubble').length > 0) return;
+
+            const bubble = document.createElement('div');
+            bubble.className = 'computer-bubble terminal-text';
+            bubble.innerText = '📧';
+            bubble.style.left = (Math.random() * 80 + 10) + '%';
+            bubble.style.top = (Math.random() * 60 + 20) + '%';
+            
+            // 移除了原本的点击事件，现在纯靠拖拽碰撞触发
+            dom.map.appendChild(bubble);
+            setTimeout(() => { if(bubble.parentNode) dom.map.removeChild(bubble); }, 15000);
+
+        }, CONFIG.bubbleInterval);
+    }
+
+    // 拖拽触碰邮箱的处理逻辑
+    function handleBubbleMet(charId, bubble) {
+        if(bubble.parentNode) dom.map.removeChild(bubble);
+        
+        const sideCase = sideCaseGenerator(charId);
+        dom.speaker.style.color = "var(--main-green)"; 
+        showText(sideCase.s, sideCase.t, showTerminalPlaceholder);
+        
+        addTrust(CONFIG.trustPerHelp);
+        tryCompleteTask('help');
+    }
+
+    // 根据是 Finch 还是 Reese 去处理邮件，生成不同的文案
+    function sideCaseGenerator(charId) {
+        const victims = ["陈小姐", "布朗先生", "一个未成年黑客", "一名正直的警官"];
+        const threats = ["遭受信用诈骗", "被雇佣兵追踪", "即将被地铁撞击", "被置入虚假罪证"];
+        const v = victims[Math.floor(Math.random()*victims.length)];
+        const t = threats[Math.floor(Math.random()*threats.length)];
+
+        let actionText = "";
+        if (charId === 'char-finch') {
+            const finchActions = ["通过防火墙拦截了数据", "冻结了对方的银行卡", "操控红绿灯制造了阻碍", "侵入了闭路电视监控"];
+            actionText = `Finch ${finchActions[Math.floor(Math.random()*finchActions.length)]}`;
+        } else {
+            const reeseActions = ["在现实中夺下了武器", "破坏了对方车辆的引擎", "将受害者带到了安全屋", "物理“劝说”了歹徒"];
+            actionText = `Reese ${reeseActions[Math.floor(Math.random()*reeseActions.length)]}`;
+        }
+
+        return {
+            s: "CASE_RESOLVED",
+            t: `处理号码: ${v}。检测到威胁: ${t}。\n${actionText}。危机解除。*(信任值 +${CONFIG.trustPerHelp})*`
+        };
+    }
+
+    function addTrust(val) {
+        if(gameState.currentVNMode === 'end') return;
+        gameState.trust += val;
+        if (gameState.trust >= CONFIG.maxTrust) {
+            gameState.trust = CONFIG.maxTrust;
+            triggerEndGame();
+        }
+        dom.trustVal.innerText = gameState.trust;
+        dom.trustFill.style.width = (gameState.trust / CONFIG.maxTrust * 100) + '%';
+    }
+
+    function updateMissions() {
+        if(gameState.missionsCompleted >= CONFIG.totalMissions) return;
+
+        const taskTypes = [
+            {id: 'talk', t: "拖动 F 与 R 碰触交谈"},
+            {id: 'help', t: "将角色拖至 📧 解决号码"}
+        ];
+        
+        gameState.activeTasks = [];
+        for(let i=0; i<2; i++) {
+            const type = taskTypes[Math.floor(Math.random()*taskTypes.length)];
+            const target = (type.id === 'talk' ? 2 : 3); 
+            gameState.activeTasks.push({id: type.id, desc: type.t, current: 0, target: target});
+            document.getElementById(`task-${i}`).innerText = `[ ] ${type.t} (${0}/${target})`;
+        }
+    }
+
+    function tryCompleteTask(type) {
+        if(gameState.currentVNMode !== 'main') return;
+        
+        gameState.activeTasks.forEach((task, idx) => {
+            if(task.id === type) {
+                task.current++;
+                if(task.current >= task.target) {
+                    task.current = task.target; 
+                    document.getElementById(`task-${idx}`).style.textDecoration = "line-through";
+                    document.getElementById(`task-${idx}`).style.color = "#444";
+                }
+                if(task.current <= task.target) {
+                   document.getElementById(`task-${idx}`).innerText = `[${task.current >= task.target ? 'X':' '}] ${task.desc} (${task.current}/${task.target})`;
+                }
+            }
+        });
+
+        if(gameState.activeTasks.every(t => t.current >= t.target)) {
+            addTrust(50); 
+            gameState.missionsCompleted++;
+            showText("SYSTEM", `今日任务清单已完成 (${gameState.missionsCompleted}/${CONFIG.totalMissions})。获得额外信任值。重启系统...`, () => {
+                updateMissions();
+                showTerminalPlaceholder();
+            });
+        }
+    }
+
+    function handleCharactersMet(draggedId) {
+        if(gameState.isFirstDrag) {
+            gameState.isFirstDrag = false;
+        }
+
+        let dialogueQueue = [];
+        
+        if (draggedId === 'char-finch') {
+            gameState.finch连续找Reese++;
+            gameState.reese连续找Finch = 0; 
+
+            if (gameState.finch连续找Reese >= 5) {
+                dialogueQueue = getSpecialDialogue('finch');
+                gameState.finch连续找Reese = 0;
+            } else {
+                dialogueQueue = generateDynamicDialogue('finch');
+            }
+        } else {
+            gameState.reese连续找Finch++;
+            gameState.finch连续找Reese = 0;
+
+            if (gameState.reese连续找Finch >= 5) {
+                dialogueQueue = getSpecialDialogue('reese');
+                gameState.reese连续找Finch = 0;
+            } else {
+                dialogueQueue = generateDynamicDialogue('reese');
+            }
+        }
+
+        playMainDialogueQueue(dialogueQueue);
+    }
+
+    function generateDynamicDialogue(initiator) {
+        const trust = gameState.trust;
+        let stage = 'early'; 
+        if (trust > 300 && trust <= 700) stage = 'mid'; 
+        else if (trust > 700) stage = 'late'; 
+
+        const dialogues = {
+            finch: {
+                early: [
+                    [{s: "🐱 Finch", t: "里斯先生，请注意保持距离。这是必要的谨慎。"}, {s: "🐶 Reese", t: "哼，随便你。只要你不挡我的路。"}],
+                    [{s: "🐱 Finch", t: "你的假身份还有些漏洞，我得重新处理。"}, {s: "🐶 Reese", t: "随便你，你才是那个电脑天才。"}]
+                ],
+                mid: [
+                    [{s: "🐱 Finch", t: "这次黑客攻击很隐蔽，我们需要小心。"}, {s: "🐶 Reese", t: "知道了。如果他们露头，我会解决。"}],
+                    [{s: "🐱 Finch", t: "关于你的伤...尽量避免不必要的冲突。"}, {s: "🐶 Reese", t: "这由不得我，哈罗德。但我会注意的。"}]
+                ],
+                late: [
+                    [{s: "🐱 Finch", t: "约翰，你是这里不可或缺的一部分。"}, {s: "🐶 Reese", t: "你也一样，哈罗德。"}],
+                    [{s: "🐱 Finch", t: "如果我们不得不离开，我已经准备了后路。"}, {s: "🐶 Reese", t: "有我在，没人能动这个图书馆。"}]
+                ]
+            },
+            reese: {
+                early: [
+                    [{s: "🐶 Reese", t: "这个地方不安全，你到底在隐藏什么？"}, {s: "🐱 Finch", t: "我只是希望你明白...秘密能让人活得更久。"}],
+                    [{s: "🐶 Reese", t: "我不需要保姆。"}, {s: "🐱 Finch", t: "而我需要一个活着的特工。"}]
+                ],
+                mid: [
+                    [{s: "🐶 Reese", t: "我不喜欢这个号码的预兆。"}, {s: "🐱 Finch", t: "确实，但我们要尽量避免不必要的伤亡。"}],
+                    [{s: "🐶 Reese", t: "培根煎好了，要来点吗？"}, {s: "🐱 Finch", t: "谢谢，但我还是喝茶吧。"}]
+                ],
+                late: [
+                    [{s: "🐶 Reese", t: "哈罗德，这个名字挺适合你。"}, {s: "🐱 Finch", t: "谢谢你的评价，约翰。"}],
+                    [{s: "🐶 Reese", t: "无论发生什么，我会守在你身边。"}, {s: "🐱 Finch", t: "我知道。我也是。"}]
+                ]
+            }
+        };
+
+        const stageDialogues = dialogues[initiator][stage];
+        return stageDialogues[Math.floor(Math.random() * stageDialogues.length)];
+    }
+
+    function getSpecialDialogue(type) {
+        const specials = {
+            finch: [
+                [{s:"🐱 Finch", t:"里斯先生？里斯先生？"}, {s:"🐶 Reese", t:"...敌袭？"}, {s:"🐱 Finch", t:"不，只是你今天的呼吸声大了3分贝，我很担心。"}, {s:"🐶 Reese", t:"...哈罗德，你需要找个监控之外的爱好了。"}],
+                [{s:"🐱 Finch", t:"约翰，你已经连续在那块瓷砖上踩了15次了。"}, {s:"🐶 Reese", t:"这是在模拟 CIA 的步伐追踪。你在看屏幕还是在看我？"}, {s:"🐱 Finch", t:"...(推眼镜) 纯属偶然看见。"}]
+            ],
+            reese: [
+                [{s:"🐶 Reese", t:"芬奇。芬奇。哈罗德。哈罗德。"}, {s:"🐱 Finch", t:"我在听，约翰。麻烦请只叫一个名字。"}, {s:"🐶 Reese", t:"培根吃完了。我确认过了，藏在第三个抽屉里的那包也没了。"}, {s:"🐱 Finch", t:"...(扶额)"}],
+                [{s:"🐶 Reese", t:"哈罗德，刚才那只进来的老鼠...它也是你的监控设备吗？"}, {s:"🐱 Finch", t:"什么？不！如果你看到它，请把它... gentlely... 移出去。"}, {s:"🐶 Reese", t:"Gentlely. 懂了。 *(露牙齿)*"}]
+            ]
+        };
+        return specials[type][Math.floor(Math.random() * specials[type].length)];
+    }
+
+    let currentMainQueue = [];
+    function playMainDialogueQueue(queue) {
+        if(gameState.currentVNMode !== 'main') return;
+        currentMainQueue = JSON.parse(JSON.stringify(queue)); 
+        playNextMainLine();
+    }
+
+    function playNextMainLine() {
+        if(currentMainQueue.length > 0) {
+            const line = currentMainQueue.shift();
+            const displayText = (currentMainQueue.length === 0) ? `${line.t} *(信任值 +${CONFIG.trustPerTalk})*` : line.t;
+            
+            showText(line.s, displayText, () => {
+                playNextMainLine();
+            });
+        } else {
+            addTrust(CONFIG.trustPerTalk);
+            tryCompleteTask('talk');
+            showTerminalPlaceholder();
+        }
+    }
+
+    function triggerEndGame() {
+        gameState.currentVNMode = 'end';
+        dom.map.innerHTML = "";
+        dom.charFinch.style.display = "none"; dom.charReese.style.display = "none";
+        
+        document.body.style.color = "var(--poi-amber)";
+        document.body.style.textShadow = `0 0 5px var(--poi-amber)`;
+        dom.trustFill.style.backgroundColor = "var(--poi-amber)";
+        dom.speaker.style.color = "var(--poi-amber)";
+        
+        const endLines = [
+            {s: "THE_MACHINE", t: "[ 系统分析: TRUST_BUILDING_COMPLETE ]"},
+            {s: "🐱 Finch", t: "谢谢你，约翰。很高兴你能在这。"},
+            {s: "🐶 Reese", t: "我也一样，哈罗德。"}, 
+            {s: "", t: "*(旁白)* 我们，正在受到监视。但在这一刻，我们不再是孤身一人。"},
+            {s: "THE_MACHINE", t: ">>> [ 系统离线 ] (重启系统即可重新开始)"}
+        ];
+        
+        playEndDialogue(endLines);
+    }
+
+    function playEndDialogue(queue) {
+        if(queue.length > 0) {
+            const line = queue.shift();
+            showText(line.s, line.t, () => {
+                playEndDialogue(queue);
+            });
+        } else {
+            dom.text.innerHTML += `<br><br><button class="option-btn" onclick="location.reload()">[ 重启系统 (RESTART) ]</button>`;
+            dom.vn.onclick = null; 
+        }
+    }
+
+</script>
+</body>
+</html>
